@@ -6,12 +6,14 @@ Centralized exception handling, logging, CORS, and route registration.
 import logging
 import sys
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import AsyncGenerator
 
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api.agent import router as agent_router
@@ -65,10 +67,11 @@ app = FastAPI(
 # -----------------------------------------------------------------------------
 # Restrictive CORS Configuration
 # -----------------------------------------------------------------------------
+_has_wildcard = "*" in settings.cors_origins
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
-    allow_credentials=True,
+    allow_credentials=not _has_wildcard,
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization", "Accept"],
 )
@@ -154,4 +157,39 @@ app.include_router(agent_router, prefix="/api")
 @app.get("/health", response_model=HealthResponse, include_in_schema=False)
 async def root_health() -> HealthResponse:
     return HealthResponse(status="healthy", application="CLI Agent AI")
+
+
+# -----------------------------------------------------------------------------
+# Single-Site SPA Serving (Frontend + Backend on a single domain/port)
+# -----------------------------------------------------------------------------
+def _find_frontend_dist() -> Path:
+    candidates = [
+        Path(__file__).resolve().parent.parent.parent / "frontend" / "dist",
+        Path.cwd() / "frontend" / "dist",
+        Path.cwd().parent / "frontend" / "dist",
+        Path("/app/frontend/dist"),
+        Path("frontend/dist").resolve(),
+    ]
+    for candidate in candidates:
+        if candidate.exists() and (candidate / "index.html").exists():
+            return candidate
+    return candidates[0]
+
+_FRONTEND_DIST = _find_frontend_dist()
+
+if _FRONTEND_DIST.exists() and (_FRONTEND_DIST / "index.html").exists():
+    _assets_path = _FRONTEND_DIST / "assets"
+    if _assets_path.exists():
+        app.mount("/assets", StaticFiles(directory=str(_assets_path)), name="frontend_assets")
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    async def serve_spa(full_path: str):
+        # Allow API routes to fail with 404 rather than returning HTML
+        if full_path.startswith("api/"):
+            raise StarletteHTTPException(status_code=404, detail=f"API route not found: /{full_path}")
+        file_path = _FRONTEND_DIST / full_path
+        if full_path and file_path.exists() and file_path.is_file():
+            return FileResponse(file_path)
+        return FileResponse(_FRONTEND_DIST / "index.html")
+
 

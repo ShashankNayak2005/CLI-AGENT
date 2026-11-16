@@ -11,6 +11,31 @@ const apiClient = axios.create({
 });
 
 /**
+ * Checks whether the app is running in a local development environment.
+ */
+const isLocalhost = () =>
+  typeof window !== 'undefined' &&
+  (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+
+/**
+ * Safely executes a localhost fallback only when running locally.
+ * In production (e.g. Render), immediately raises the backend error without mixed-content issues.
+ */
+const safeLocalFallback = async (fallbackFn, originalError) => {
+  if (isLocalhost()) {
+    try {
+      return await fallbackFn();
+    } catch {
+      // Fallback failed, fall through to throw original error
+    }
+  }
+  if (originalError?.response?.data?.message) {
+    throw new Error(originalError.response.data.message);
+  }
+  throw originalError;
+};
+
+/**
  * Checks backend health status.
  * @returns {Promise<{ status: string, application: string }>}
  */
@@ -19,13 +44,10 @@ export const checkHealth = async () => {
     const response = await apiClient.get('/api/health');
     return response.data;
   } catch (error) {
-    // If proxied path fails, try direct backend port fallback
-    try {
+    return safeLocalFallback(async () => {
       const fallbackResponse = await axios.get('http://127.0.0.1:8000/api/health', { timeout: 3000 });
       return fallbackResponse.data;
-    } catch {
-      throw error;
-    }
+    }, error);
   }
 };
 
@@ -44,8 +66,7 @@ export const sendChatMessage = async (message) => {
     );
     return response.data;
   } catch (error) {
-    // If proxied path fails, try direct backend port fallback
-    try {
+    return safeLocalFallback(async () => {
       const fallbackResponse = await axios.post(
         'http://127.0.0.1:8000/api/chat',
         { message },
@@ -55,12 +76,7 @@ export const sendChatMessage = async (message) => {
         }
       );
       return fallbackResponse.data;
-    } catch {
-      if (error.response?.data?.message) {
-        throw new Error(error.response.data.message);
-      }
-      throw error;
-    }
+    }, error);
   }
 };
 
@@ -75,12 +91,10 @@ export const fetchTasks = async (limit = 50, offset = 0) => {
     const response = await apiClient.get('/api/tasks', { params: { limit, offset } });
     return response.data;
   } catch (error) {
-    try {
+    return safeLocalFallback(async () => {
       const fallback = await axios.get('http://127.0.0.1:8000/api/tasks', { params: { limit, offset } });
       return fallback.data;
-    } catch {
-      throw error;
-    }
+    }, error);
   }
 };
 
@@ -94,12 +108,10 @@ export const fetchTaskDetail = async (taskId) => {
     const response = await apiClient.get(`/api/tasks/${taskId}`);
     return response.data;
   } catch (error) {
-    try {
+    return safeLocalFallback(async () => {
       const fallback = await axios.get(`http://127.0.0.1:8000/api/tasks/${taskId}`);
       return fallback.data;
-    } catch {
-      throw error;
-    }
+    }, error);
   }
 };
 
@@ -113,12 +125,10 @@ export const deleteTask = async (taskId) => {
     const response = await apiClient.delete(`/api/tasks/${taskId}`);
     return response.data;
   } catch (error) {
-    try {
+    return safeLocalFallback(async () => {
       const fallback = await axios.delete(`http://127.0.0.1:8000/api/tasks/${taskId}`);
       return fallback.data;
-    } catch {
-      throw error;
-    }
+    }, error);
   }
 };
 
@@ -141,7 +151,7 @@ export const downloadTaskResult = async (taskId) => {
     document.body.removeChild(link);
     window.URL.revokeObjectURL(url);
   } catch (error) {
-    try {
+    return safeLocalFallback(async () => {
       const fallback = await axios.get(`http://127.0.0.1:8000/api/tasks/${taskId}/result`, {
         responseType: 'blob',
       });
@@ -154,9 +164,7 @@ export const downloadTaskResult = async (taskId) => {
       link.click();
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
-    } catch {
-      throw error;
-    }
+    }, error);
   }
 };
 
@@ -181,15 +189,10 @@ export const generatePlan = async (message) => {
     const response = await apiClient.post('/api/agent/plan', { message }, { timeout: 30000 });
     return response.data;
   } catch (error) {
-    try {
+    return safeLocalFallback(async () => {
       const fallback = await axios.post('http://127.0.0.1:8000/api/agent/plan', { message }, { timeout: 30000 });
       return fallback.data;
-    } catch {
-      if (error.response?.data?.message) {
-        throw new Error(error.response.data.message);
-      }
-      throw error;
-    }
+    }, error);
   }
 };
 
@@ -208,19 +211,14 @@ export const executePlan = async (planId, approved = true) => {
     );
     return response.data;
   } catch (error) {
-    try {
+    return safeLocalFallback(async () => {
       const fallback = await axios.post(
         `http://127.0.0.1:8000/api/agent/execute/${planId}`,
         { approved },
         { timeout: 120000 }
       );
       return fallback.data;
-    } catch {
-      if (error.response?.data?.message) {
-        throw new Error(error.response.data.message);
-      }
-      throw error;
-    }
+    }, error);
   }
 };
 
@@ -234,12 +232,10 @@ export const cancelPlan = async (planId) => {
     const response = await apiClient.post(`/api/agent/cancel/${planId}`);
     return response.data;
   } catch (error) {
-    try {
+    return safeLocalFallback(async () => {
       const fallback = await axios.post(`http://127.0.0.1:8000/api/agent/cancel/${planId}`);
       return fallback.data;
-    } catch {
-      throw error;
-    }
+    }, error);
   }
 };
 
@@ -253,12 +249,10 @@ export const getPlanStatus = async (planId) => {
     const response = await apiClient.get(`/api/agent/plans/${planId}`);
     return response.data;
   } catch (error) {
-    try {
+    return safeLocalFallback(async () => {
       const fallback = await axios.get(`http://127.0.0.1:8000/api/agent/plans/${planId}`);
       return fallback.data;
-    } catch {
-      throw error;
-    }
+    }, error);
   }
 };
 
@@ -281,7 +275,7 @@ export const downloadPlanExport = async (planId) => {
     document.body.removeChild(link);
     window.URL.revokeObjectURL(url);
   } catch (error) {
-    try {
+    return safeLocalFallback(async () => {
       const fallback = await axios.get(`http://127.0.0.1:8000/api/agent/export/${planId}`, {
         responseType: 'blob',
       });
@@ -294,9 +288,7 @@ export const downloadPlanExport = async (planId) => {
       link.click();
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
-    } catch {
-      throw error;
-    }
+    }, error);
   }
 };
 

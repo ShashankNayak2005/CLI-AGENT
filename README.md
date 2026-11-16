@@ -9,7 +9,7 @@
 [![Frontend](https://img.shields.io/badge/Frontend-React%20%2B%20Vite%20%7C%20TailwindCSS-61DAFB.svg)](#)
 [![Database](https://img.shields.io/badge/Database-SQLite%20%2B%20SQLAlchemy-003B57.svg)](#)
 [![Docker](https://img.shields.io/badge/Docker-Ready%20%7C%20Compose-2496ED.svg)](#)
-[![Tests](https://img.shields.io/badge/Tests-67%20Passed-emerald.svg)](#)
+[![Tests](https://img.shields.io/badge/Tests-72%20Passed-emerald.svg)](#)
 
 ---
 
@@ -245,7 +245,29 @@ cd ..
 
 ## 8. Running the Application
 
-### Option A: Local Development (PowerShell)
+### Option A: Single Command Launcher (Recommended)
+
+To start both the FastAPI backend and React frontend with a single command:
+
+```powershell
+.\start.ps1
+```
+*(Or double-click `start.bat`)*
+
+This script:
+1. Automatically launches the FastAPI backend on `http://127.0.0.1:8000`.
+2. Opens your default web browser to `http://localhost:5173`.
+3. Starts the React + Vite frontend in the active terminal.
+4. Cleans up both processes when you exit (Ctrl+C).
+
+Alternatively, run as a single inline PowerShell command:
+```powershell
+Start-Process powershell "-NoExit -Command cd '$PWD'; .\.venv\Scripts\Activate.ps1; `$env:PYTHONPATH='backend'; python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload"; cd frontend; npm run dev
+```
+
+---
+
+### Option B: Two-Terminal Development (PowerShell)
 
 **Terminal 1 — Backend Server:**
 ```powershell
@@ -264,7 +286,7 @@ npm run dev
 
 ---
 
-### Option B: Docker Compose Deployment
+### Option C: Docker Compose Deployment
 
 Ensure Docker Desktop is running, then execute:
 
@@ -276,6 +298,28 @@ docker compose up --build
 - **Backend API**: `http://localhost:8000`
 - **SQLite Database**: Persisted in Docker volume `cli_agent_db_data`
 - **Exported JSON Artifacts**: Persisted in Docker volume `cli_agent_output_data`
+
+---
+
+### Option D: 1-Click Free Deployment on Render (Single-Site Full-Stack)
+
+You can deploy the entire application (React frontend + FastAPI backend + SQLite) to **Render.com** completely for free on a single domain.
+
+#### Quick Setup:
+1. Push this repository to GitHub.
+2. In [Render.com](https://render.com), click **New** $\to$ **Web Service** and select your repository.
+3. Configure the service settings:
+   - **Environment:** `Python 3`
+   - **Build Command:** `bash build.sh`
+   - **Start Command:** `python -m uvicorn app.main:app --app-dir backend --host 0.0.0.0 --port $PORT`
+4. Add **Environment Variables**:
+   - `GROQ_API_KEY`: `gsk_your_groq_api_key`
+   - `GROQ_MODEL`: `openai/gpt-oss-120b`
+   - `PYTHON_VERSION`: `3.11.9`
+   - `APP_ENV`: `production`
+5. Click **Create Web Service**.
+
+*Alternatively, click **New** $\to$ **Blueprint** and Render will automatically configure everything using the included `render.yaml`!*
 
 ---
 
@@ -295,7 +339,7 @@ python -m app.cli.main crawl --url https://example.com --max-pages 5 --max-depth
 
 ---
 
-## 10. Automated Testing Suite (67 Passed)
+## 10. Automated Testing Suite (72 Passed)
 
 Execute the full automated test suite covering all phases, security bounds, and edge cases:
 
